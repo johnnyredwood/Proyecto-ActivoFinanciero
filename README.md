@@ -1,10 +1,9 @@
 ```Universidad San Francisco de Quito
 Data Mining
-Proyecto 04
-John Ochoa Abad 345743
+Proyecto 05
 
 #Github Link:
-https://github.com/johnnyredwood/PSET4_NYTAXIS_ML_SCRATCH_SCIKIT
+[https://github.com/johnnyredwood/PSET4_NYTAXIS_ML_SCRATCH_SCIKIT](https://github.com/johnnyredwood/PSET5-ENSEMBLE-REGRESSION)
 
 #Descripción del proyecto:
 Implementé una infraestructura analítica completa utilizando Docker Compose que integra Jupyter+Spark con Postgres para procesar el dataset 
