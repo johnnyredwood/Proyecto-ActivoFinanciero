@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ```Universidad San Francisco de Quito
 Data Mining
 Proyecto 06
