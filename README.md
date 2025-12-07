@@ -1,349 +1,252 @@
 ```Universidad San Francisco de Quito
 Data Mining
-Proyecto 06
+Proyecto Activo Financiero
 John Ochoa (00345743)
 
 #Github Link:
-https://github.com/johnnyredwood/PSET5-ENSEMBLE-REGRESSION
+https://github.com/johnnyredwood/Proyecto-ActivoFinanciero
 
 #Descripción del proyecto:
-Infraestructura analítica completa con Docker Compose integrando Jupyter+Spark y Postgres para procesar el dataset NYC TLC Trips 2015–2025. Se ingesta cobertura Yellow y Green en esquema RAW y se construye una tabla analítica unificada (One Big Table) en el esquema `analytics` mediante un único comando (`build_obt.py`).
+Infraestructura analítica y de machine learning para un modelo de clasificación orientado a decisiones de trading intradía/simple sobre activos financieros. El proyecto integra:
+- Jupyter para consumo de datos raw
+- Script para construcción automatizada de tabla de datos en esquema analytics
+- Notebook con EDA, preparación y entrenamiento del modelo.
+- Simulación de inversión (backtest) 2025 con reglas explícitas y métricas de desempeño.
+- FastAPI para exponer el modelo vía HTTP (`/health`, `/predict`) con Docker/Compose, montando el artefacto entrenado desde `libros/modelos`.
 
-Sobre la OBT se realiza muestreo controlado y preparación de features (scaling numéricas + one-hot categóricas) para entrenar y comparar modelos de regresión enfocándose en predecir `total_amount` al pickup. En esta versión (PSET5) se evoluciona desde modelos lineales regularizados hacia un set de modelos ensemble (Voting, Bagging, Pasting, Gradient Boosting y LightGBM) más un baseline lineal, seleccionando el mejor por RMSE temporal en validación y auditando desempeño en test.
+Los datos de activos financieros serán directamente extraídos de la API de Yahoo Finance para un rango de fechas especificado en las variables de entorno y a su vez identificado por los denominadores tickers de igual forma previamente indicados en el archivo .env (ver .env.example o descripción de variables de entorno del presente readme)
+
+El modelo predice la dirección próxima del retorno (arriba/abajo) que es una variable target de tipo binario denominada target_up usando features derivadas (día de la semana, volatilidad reciente, retornos previos, volumen, etc.). La API devuelve únicamente la etiqueta `pred_label` para facilitar su consumo y de igual forma simplificar el uso del modelo.
 
 #Checklist de aceptación
-[x] Docker Compose levanta Spark y Jupyter Notebook.
-[x] Variables sensibles gestionadas vía archivo .env.
-[x] Cobertura 2015–2025 (Yellow/Green) cargada en RAW con monitoreo por lote.
-[x] Tabla `analytics.obt_trips` construida con columnas base, derivadas y metadatos.
-[x] Muestreo controlado y particionado temporal (Train ≤2022 / Val 2023 / Test 2024).
-[x] Modelos Ensemble (Voting, Bagging, Pasting, Gradient Boosting, LightGBM) comparados con baseline.
-[x] Selección por menor RMSE en validación manteniendo MAE y R² estables.
+[x] Docker Compose levanta la API del modelo (FastAPI) correctamente.
+[x] Variables sensibles y puertos gestionados vía `.env` y `docker-compose.yaml`.
+[x] Artefacto del modelo guardado en `libros/modelos` y montado en el contenedor.
+[x] Notebook con EDA breve (balance de clases, distribución de retornos).
+[x] Balanceo de clases en Train (undersampling/oversampling configurable).
+[x] Obtención de mejor modelo a través de validación y testing en 7 modelos de Machine Learning
+[x] Simulación 2025 con curva de equity, drawdown y comparación con métricas ML.
 [x] README claro: pasos, variables, arquitectura, decisiones y troubleshooting.
 
-#Variables de ambiente: listado y propósito; guía para .env.
+#Variables de ambiente: listado y propósito; guía para .env
 
-Para la ejecución de los notebooks se definieron las siguientes variables de ambiente de Snowflake:
+Variables principales del proyecto (ver `.env.example`):
 
-SOURCE_PATH=https://d37ci6vzurychx.cloudfront.net
-YEARS=2020,2021,2022,2023,2024,2025
-MONTHS=1,2,3,4,5,6,7,8,9,10,11,12
-SERVICES=yellow,green
-JUPYTER_TOKEN=token123
+JUPYTER_TOKEN=token1234
 PYSPARK_PYTHON=python3
 SPARK_LOCAL_IP=0.0.0.0
 PORT_JUPYTER=8888
 PORT_SPARK=4040
 PORT_POSTGRES=5432
 PORT_WAREHOUSEUI=8080
-POSTGRES_HOST=postgres
-POSTGRES_DB=database123
-POSTGRES_USER=usuario123
-POSTGRES_PASSWORD=clave123
+POSTGRES_HOST=postgres_host
+POSTGRES_DB=activo_financiero
+POSTGRES_USER=usuario_spark
+POSTGRES_PASSWORD=usuario_password
 PGADMIN_DEFAULT_EMAIL=admin@admin.com
 PGADMIN_DEFAULT_PASSWORD=adminPassword123
-PG_USER=usuario_pg123
-PG_DB=database123
+TICKERS= AAPL,MSFT,SPY,NVDA,INTC,AMD,GOOGL,AMZN,TSLA,JPM
+START_DATE=01-01-2020
+END_DATE=30-11-2025
+RAW_TABLE=prices_daily
+ANALYTICS_TABLE=daily_features
+API_PORT=7000
 
-Con estas variables siguiendo el ejemplo del .env.example incluido en el proyecto se puede reproducir el mismo con credenciales propias
-de esta manera se gestiona correctamente los datos sensibles.
+Notas:
+- La API usa por defecto el camino del contenedor `/models/best_pipeline.joblib`. Compose monta `MODEL_DIR` del host en `/models` para que el archivo esté disponible.
+- Se puede ajustar `API_PORT` si se desea exponer otro puerto local.
 
-#Arquitectura (flujo resumido)
+#Guía de variables de entorno (.env)
 
- Ingesta Parquet (Yellow/Green & Zones)
+- `JUPYTER_TOKEN`: token para acceso a Jupyter dentro del contenedor.
+- `PYSPARK_PYTHON`: intérprete Python que usará PySpark (`python3`).
+- `SPARK_LOCAL_IP`: IP local de Spark para UI y jobs (`0.0.0.0`).
+- `PORT_JUPYTER`: puerto de Jupyter Notebook (por ejemplo `8888`).
+- `PORT_SPARK`: puerto de Spark UI (por ejemplo `4040`).
+- `PORT_POSTGRES`: puerto del servicio Postgres (por ejemplo `5432`).
+- `PORT_WAREHOUSEUI`: puerto de UI/pgAdmin (por ejemplo `8080`).
+- `POSTGRES_HOST`: hostname del contenedor/database para conexión (`postgres_host`).
+- `POSTGRES_DB`: nombre de la base de datos (`activo_financiero`).
+- `POSTGRES_USER`: usuario de conexión (ejemplo `usuario_spark`).
+- `POSTGRES_PASSWORD`: contraseña del usuario de conexión.
+- `PGADMIN_DEFAULT_EMAIL`: email por ejemplo de pgAdmin.
+- `PGADMIN_DEFAULT_PASSWORD`: contraseña por ejemplo de pgAdmin.
+- `TICKERS`: lista separada por comas de símbolos a descargar (ej. `AAPL,MSFT,SPY,...`).
+- `START_DATE`: fecha inicial (formato `DD-MM-YYYY`, ej. `01-01-2020`).
+- `END_DATE`: fecha final (formato `DD-MM-YYYY`, ej. `30-11-2025`).
+- `RAW_TABLE`: nombre de tabla RAW para precios diarios (`prices_daily`).
+- `ANALYTICS_TABLE`: nombre de tabla de features derivadas (`daily_features`).
+- `API_PORT`: puerto local para la API de FastAPI (por ejemplo `7000`).
+
+#Arquitectura
+
+ Inicialización de esquemas raw y analytics
         │
         ▼
- Esquema RAW (tablas particionadas + metadatos)
+ Notebook yf_ingesta.ipynb para ingesta de datos hacia RAW
         │
         ▼
- Construcción OBT (`analytics.obt_trips`)
+ Script build_features.py para construcción de tabla hacia ANALYTICS
         │
         ▼
- Muestreo & Preparación (limpieza, encoding, scaling)
+ Preparación y Entrenamiento (EDA + balanceo + pipeline)
         │
         ▼
- Entrenamiento Modelos (Baseline + Ensembles)
+ Obtención del mejor modelo (`joblib`) y simulación de trading
         │
         ▼
- Selección & Evaluación (Validación / Test)
+ Serving con FastAPI del mejor modelo bajo endpoint predict
 
+#Estructura de directorios
 
-#Pasos para Docker Compose y ejecución de notebooks (incluido comando para construir OBT).
+📁 init-scripts             -> SQL inicial y esquemas
+│   └── 01-init-schemas.sql
+📁 libros                   -> Notebooks y artefactos del modelo de ingesta + ML
+│   ├── yf_ingesta.ipynb
+│   ├── ml_trading_classifier.ipynb
+│   └── modelos/            -> Artefacto del modelo (`best_pipeline.joblib`)
+📁 model-api                -> Código de la API FastAPI (serving)
+📁 models                   -> Carpeta auxiliar de modelos (si aplica)
+📁 scripts                  -> Scripts utilitarios (ETL/Features/OBT si aplica)
+│   └── build_features.py
+📁 warehouse_data           -> Datos persistidos (volumenes/BD)
+📁 warehouse_ui_data        -> Datos de UI (pgAdmin/sesiones)
+docker-compose.yaml         -> Orquestación de servicios (API, montajes)
+Dockerfile.feature-builder  -> Dockerfile para construir/servir la API
+README.md                   -> Documentación del proyecto
+requirements.txt            -> Dependencias Python
+
+#Pasos de ejecución (end-to-end)
 
 Prerrequisitos
-*Docker instalado
-*Docker Compose instalado
-*Archivo .env configurado con las credenciales de Snowflake
+* Docker y Docker Compose instalados
+* Archivo `.env` configurado con variables de datos y puertos
 
-1. Descargar de repositorio y Configuración del Ambiente
+1) Clonar y configurar
 
-- Descargar el repositorio a su entorno local con
-git clone https://github.com/johnnyredwood/PSET5-ENSEMBLE-REGRESSION/
+- Clonar el repositorio:
+git clone https://github.com/johnnyredwood/Proyecto-ActivoFinanciero
 
-Crear archivo de variables de ambiente:
 
-- Copiar el template y configurar con valores reales
+- Crear `.env` desde plantilla y ajustar valores:
 cp .env.example .env
 
-- Editar el archivo .env con tus credenciales
-nano .env
 
-2. Verificar estructura de directorios (vista clave):
+2) Levantar infraestructura base
 
-📁 drivers                  -> Dependencias externas (drivers JDBC, etc.)
-📁 Evidencias               -> Capturas / artefactos de validación y resultados
-📁 init-scripts             -> SQL inicial (esquemas, permisos) para Postgres
-│   └── 01-init-schemas.sql
-📁 libros                   -> Notebooks de ingesta y modelado
-│   📁 .ipynb_checkpoints    -> Estados intermedios automáticos
-│   ├── 01_ingesta_parquet_raw.ipynb  -> Ingesta masiva RAW
-│   ├── pset5_ensemble_regression.ipynb -> Entrenamiento y comparación ensembles
-│   ├── checkpointTaxisGreen.json      -> Progreso ingesta Green
-│   ├── checkpointTaxisYellow.json     -> Progreso ingesta Yellow
-│   └── postgresql-42.2.5.jar          -> Driver JDBC Postgres
-📁 logs                     -> Logs operativos / seguimiento procesos
-📁 scripts                  -> Scripts utilitarios (ETL / construcción OBT)
-│   └── build_obt.py        -> Construcción tabla OBT parametrizada
-📁 warehouse_data           -> Data directory Postgres (persistencia física)
-📁 warehouse_ui_data        -> Data de la UI (pgAdmin / sesiones)
-│   ├── azurecredentialcache
-│   ├── sessions
-│   ├── storage
-│   └── pgadmin4.db
-.env                        -> Variables de entorno locales (no versionar sensibles)
-.env.example                -> Plantilla de referencia para reproducir entorno
-.gitignore                  -> Exclusiones de control de versión
-docker-compose.yaml         -> Orquestación de servicios (Spark, Jupyter, Postgres, pgAdmin)
-Dockerfile.obt-builder      -> Imagen especializada para construcción OBT
-README.md                   -> Documentación del proyecto
-requirements.txt            -> Dependencias Python base
-
-3. Inicialización de la Infraestructura
-Levantar los servicios con Docker Compose:
-
-- Ejecutar en el directorio del proyecto el siguiente comando para levantar el contenedor con variables de entorno de .env
+- En la raíz del proyecto, levantar contenedores base:
 docker-compose --env-file .env up -d
-
-- Verificar que el contenedor esté corriendo
 docker-compose ps
 
-4. Acceder a Jupyter Notebook:
-Acceder al Jupyter Notebook del contenedor con el puerto y token indicados en su .env
 
-URL: http://localhost:puerto
-Token: [valor de JUPYTER_TOKEN en .env]
+3) Ingesta de datos RAW (Yahoo Finance)
 
-5. Ejecución Secuencial de Notebooks
-Orden de ejecución obligatorio:
+- Ejecutar el notebook `libros/yf_ingesta.ipynb` dentro de Jupyter para poblar la tabla RAW (`RAW_TABLE`, por defecto `prices_daily`).
+- Acceso a Jupyter (si está habilitado): `http://localhost:${PORT_JUPYTER}` con token `${JUPYTER_TOKEN}`.
 
-Notebook 01 - 01_ingesta_parquet_raw
-Parámetros esperados:
-- Años: 2015-2025 (configurado en .env)
-- Meses: 1-12 (configurado en .env)  
-- Servicios: yellow, green (configurado en .env)
-Genera:
--Tabla RAW de datos de taxi por servicio en Snowflake
+4) Construcción de tabla ANALYTICS (features)
 
-Construcción de tabla OBT
-
-Teniendo los contenedores corriendo en Docker desde consola ejecutar el siguiente comando:
-
-docker compose run obt-builder python /app/scripts/build_obt.py --year-start yearInicio --year-end yearFin --services serviciosSeparadosPorComa --run-id identificadorRun --months mesesSeparadosPorEspacio
-
-De donde:
-yearInicio es el año en formato entero desde el cual se quieren empezar a procesar los datos (verificar disponibilidad de datos de dicho año en esquema Raw)
-yearFin es el año en formato entero hasta el cual se quieren procesar los datos (verificar disponibilidad de datos de dicho año en esquema Raw)
-serviciosSeparadosPorComa son los servicios de los taxis en este caso aplica yellow,green
-identificadorRun es un identificador que se poblara en la tabla obt se puede ingresar cualquiera que desee el usuario
-mesesSeparadosPorEspacio son los meses de cada año que se deseen procesar en formato entero separados por espacios
-
-Ejemplos de dicho comando para ejecutar son:
-
-docker compose run obt-builder python /app/scripts/build_obt.py --year-start 2020 --year-end 2020 --services yellow,green --run-id full_load --months 3 4 5 6 7 8 9 10 11 12
-
-docker compose run obt-builder python /app/scripts/build_obt.py --year-start 2022 --year-end 2022 --services yellow,green --run-id full_load
-
-#Diseño de raw y OBT (columnas, derivadas, metadatos, supuestos).
-
-*Esquema RAW
-El esquema raw funciona como capa de aterrizaje donde se preservan los datos en su 
-formato original con metadatos de ingesta. Se implementaron tablas particionadas por servicio 
-y período para optimizar el manejo de los volúmenes de datos.
-
-Estructura de tablas RAW:
-
-NY_TAXI_RAW_YELLOW - Viajes de taxi amarillo RAW
-NY_TAXI_RAW_GREEN - Viajes de taxi verde RAW
-NY_TAXI_RAW_TAXI_ZONES - Zonas de Taxis de New York RAW
-
-Columnas base preservadas del origen:
-
-Datos temporales: pickup/dropoff datetime
-Ubicaciones: PULocationID, DOLocationID
-Métricas de viaje: trip_distance, passenger_count
-Tarifas: fare_amount, tip_amount, tolls_amount, total_amount
-Identificadores: VendorID, RatecodeID, payment_type
-
-Metadatos de ingesta agregados:
-
-run_id - Identificador único de la ejecución
-source_year / source_month - Período de origen
-ingested_at_utc - Timestamp de ingesta
-service_type - Tipo de servicio (yellow/green)
-
-*Esquema ANALYTICS - OBT
-La OBT consolida todos los datos de viajes de taxis de New York en una tabla que junta toda 
-la información necesaria validada y depurada a manera de ejecutar consultas de negocio
-sobre la misma
-
-Columnas de la OBT:
-
-Temporales:
-pickup_datetime, dropoff_datetime - Timestamps originales
-pickup_date, pickup_hour - Componentes temporales
-dropoff_date, dropoff_hour - Componentes temporales
-trip_duration_min - Duración calculada en minutos
-
-Ubicaciones:
-pu_location_id, do_location_id - IDs originales
-pu_zone, pu_borough - Nombres desnormalizados
-do_zone, do_borough - Nombres desnormalizados
-
-Servicio y Códigos:
-vendor_id, vendor_name - Desnormalizado
-rate_code_id, rate_code_desc - Desnormalizado
-payment_type, payment_type_desc - Desnormalizado
-
-Métricas y Tarifas:
-passenger_count, trip_distance
-fare_amount, extra, mta_tax, tip_amount
-tolls_amount, improvement_surcharge
-congestion_surcharge, airport_fee, total_amount
-
-Metadatos:
-run_id - Trazabilidad de la ejecución
-ingested_at_utc - Fecha de procesamiento
-source_service - Servicio de origen
-source_year, source_month - Período origen
-
-Supuestos de Diseño
-Clave Natural: Se define basada en pickup_datetime, PULocationID, DOLocationID y VendorID para garantizar identificación única de viajes en merges
-
-Estrategia de Idempotencia: Implementación de UPSERT basado en clave natural, permitiendo reingesta sin duplicados.
-
-Manejo de Datos: Se han filtrado nulos en campos obligatorios y se ha definido validaciones lógicas para datos númericos de forma que los mismos
-cumplan con rangos lógicos
-
-#Calidad/auditoría: qué se valida y dónde se ve.
-
-*Validación de Conectividad con Snowflake desde Spark:
-Inicio sesión de Spark y posteriormente genero una conexión con Snowflake con mis credenciales y ejecuto una query simple de SELECT current_version()
-esto lo valido en todos los notebooks antes de proceder con el consumo, procesamiento y/o lectura de datos
-
-*Validación de Ingesta de datos:
-En todos los notebooks he implementado logs en forma de prints y manejo de excepciones para ir monitoreando el proceso de consumo de todos los datos.
-A su vez una vez los mismos se iban consumiendo ingresaba en Snowflake a verificar que las tablas aumenten en cantidad de filas y monitoreaba los datos
-recien ingresados con queries simples desde Snowflake
-
-*Validación del contenedor de docker:
-Al tener spark-notebook: Jupyter+Spark desde un contenedor de docker verificaba que el mismo estuviera funcionando correctamente con el comando docker ps,
-con el Docker Desktop verificando que el contenedor este arriba e ingresando a localhost con el puerto definido y verificando que pudiera ingresar
-sin problema a Jupyter
-
-*Comentarios respecto a modelos ML:
-
-Enfoque actualizado (PSET5 - Modelos Ensemble)
-
-Se migró del enfoque de modelos lineales regularizados (SGD, Ridge, Lasso, ElasticNet desde cero y sklearn) hacia un conjunto de modelos ensemble y comparativos para mejorar capacidad predictiva sobre total_amount y robustez temporal.
-
-Modelos incluidos:
-
-Baseline: Regresión Lineal con preprocesamiento.
-
-VotingRegressor: combinación de DecisionTreeRegressor, Ridge, Lasso (voto promedio).
-
-Bagging: bootstrap sobre árboles de decisión.
-
-Pasting: muestreo sin bootstrap como contraste.
-
-Gradient Boosting: con búsqueda de hiperparámetros vía GridSearchCV + TimeSeriesSplit.
-
-LightGBM (LGBMRegressor) con grid search y control de profundidad/hojas.
-
-Preprocesamiento y Features
-
-Variables disponibles solo al momento del pickup para evitar leakage:
-passenger_count, trip_distance, pickup_hour, pickup_dow, month, year, pu_location_id, service_type, vendor_id, rate_code_id, payment_type.
-
-Limpieza: filtrado de outliers y reglas lógicas (rango de total_amount, trip_distance, duración, pasajeros).
-
-Capado de cardinalidad de pu_location_id (IDs > 265 agrupados).
-
-Split temporal fijo:
-
-Train (2022)
-
-Validación (2023)
-
-Test (2024)
-
-Transformaciones:
-
-StandardScaler para numéricas
-
-OneHotEncoder(handle_unknown='ignore', max_categories=50) para categóricas
-Todo dentro de un ColumnTransformer.
-
-Se eliminaron polinomios y generación polinomial para priorizar interpretabilidad y velocidad en ensembles.
-
-Muestreo y Estrategia de Carga
-
-Extracción vía Spark JDBC desde analytics.obt_trips con query parametrizada y random() <= 0.02 para generar una muestra balanceada multianual.
-
-Particionamiento por año para lectura paralela y deduplicación antes de pasar a Pandas.
-
-Entrenamiento y Búsqueda de Hiperparámetros
-
-TimeSeriesSplit(n_splits=5) para respetar el orden temporal en Gradient Boosting y LightGBM.
-
-Grids concisos enfocados en profundidad, tasa de aprendizaje, número de estimadores y subsampling (subsample, colsample_bytree).
-
-Registro de tiempos de ajuste (segundos) para comparar costo computacional vs. mejora predictiva.
-
-Evaluación
-
-Métricas principales: RMSE y MAE.
-
-R² como referencia de varianza explicada.
-
-Modelo final elegido por menor RMSE en validación (2023).
-
-Evaluación final en Test (2024) usando solo el mejor pipeline para evitar over-reporting.
-
-Hallazgos Clave
-
-LightGBM y Gradient Boosting ofrecen mejor trade-off entre error y estabilidad temporal.
-
-Bagging vs Pasting evidencia el impacto positivo del bootstrap bajo alta variabilidad de ubicaciones.
-
-VotingRegressor estabiliza el error pero no siempre supera a boosting cuando dominan relaciones no lineales.
-
-Próximos pasos potenciales (pendientes)
-
-Stacking de nivel 2 (meta-modelo).
-
-Ajuste de tasa de muestreo dinámica por año para balances finos.
-
-Incorporar características derivadas de distancia temporal (festivos, clima).
-
-Checklist actualizado
-
-Modelos Ensemble (Voting, Bagging, Gradient Boosting, LightGBM) comparados con baseline.
-
-Notas finales
-
-El modelo ganador se determina con base en el menor RMSE de validación, manteniendo consistencia del MAE y sin degradar significativamente R².```
-=======
-# Proyecto-ActivoFinanciero
-Proyecto de Activo Financiero- Data Mining
->>>>>>> 4286953649b8d2f2579eb0a6041828ff39f9c067
+- Ejecutar el constructor de features con parámetros del `.env` se puede utilizar el modo full o modo 
+
+docker compose run --rm 
+       -e RAW_TABLE=prices_daily 
+       -e ANALYTICS_TABLE=daily_features 
+       feature-builder 
+       /app/scripts/build_features.py --mode full 
+       --ticker AAPL,MSFT,SPY,NVDA,INTC,AMD,GOOGL,AMZN,TSLA,JPM 
+       --start-date 2020-01-01 
+       --end-date 2025-11-30 
+       --run-id full_load 
+       --overwrite true 
+       --vol-window 20
+
+Parámetros del constructor de features (`build_features.py`):
+- `--mode` (obligatorio):
+       - `full`: procesa el rango completo definido por `--start-date` y `--end-date` para todos los tickers provistos.
+       - `by-date-range`: procesa exactamente el rango indicado (útil para cargas parciales o incrementales).
+- `--ticker` (obligatorio): lista separada por comas de símbolos. Ej: `AAPL,MSFT,SPY`.
+- `--start-date` (obligatorio): fecha inicial en formato `YYYY-MM-DD`. Ej: `2020-01-01`.
+- `--end-date` (obligatorio): fecha final en formato `YYYY-MM-DD`. Ej: `2025-11-30`.
+- `--run-id` (obligatorio): identificador de ejecución para trazabilidad (ej. `full_load`, `daily_job_2025_11_30`).
+- `--overwrite` (opcional, `true|false`, por defecto `false`):
+       - `true`: reescribe particiones/registros existentes del rango/tickers indicados.
+       - `false`: preserva registros existentes y solo inserta nuevos.
+- `--vol-window` (opcional, entero, por defecto `20`): ventana en días para cálculo de volatilidad y estadísticas móviles.
+
+Variables de ambiente utilizadas por el servicio:
+- `RAW_TABLE`: nombre de la tabla RAW desde la que se leen precios (ej. `prices_daily`).
+- `ANALYTICS_TABLE`: nombre de la tabla destino de features derivadas (ej. `daily_features`).
+
+5) Entrenamiento y selección de modelo
+
+- Ejecutar el notebook `libros/ml_trading_classifier.ipynb` usando como fuente la tabla del esquema ANALYTICS.
+- Se Exportará el mejor pipeline a `libros/modelos/best_pipeline.joblib`.
+
+6) Construir y levantar la API del modelo
+
+- Construir la imagen del servicio `model-api` y levantarlo:
+
+docker compose build model-api
+docker compose up -d model-api
+docker compose ps
+
+7) Probar la API
+
+- Endpoint Health con ejemplo de llamada:
+
+Invoke-RestMethod -Uri http://localhost:{API_PORT}/health
+
+-UI para la API: abrir `http://localhost:{API_PORT}/docs` en el navegador.
+
+- Endpoint Predict con ejemplo de llamada usando mis features seleccionadas:
+Invoke-RestMethod -Method Post -Uri http://localhost:{API_PORT}/predict -ContentType 'application/json' -Body '{
+       "year": 2025,
+       "month": 6,
+       "day_of_week": 3,
+       "open": 150.23,
+       "volume": 1234567,
+       "return_prev_close": 0.0045,
+       "volatility_n_days": 0.012,
+       "is_monday": false,
+       "is_friday": true
+}'
+
+Respuesta esperada:
+{"pred_label": 1}
+
+EDA y Modelado (resumen):
+
+- EDA breve: distribución de retornos (histogramas), balance de clases global y por ticker, rango temporal y shape del dataset.
+- Balanceo de clases en Train: opción de undersampling de la mayoría u oversampling de la minoría; se utiliza `balanced_train_df` para entrenar.
+- Pipeline: preprocesamiento de numéricas y categóricas, modelo de clasificación (e.g., XGBoost/LightGBM/RandomForest), selección por métricas en validación.
+- Exportación: `joblib.dump(pipeline, 'libros/modelos/best_pipeline.joblib')`.
+- Features utilizados para evitar leakage: "year", "month", "day_of_week","open", "return_prev_close", "volatility_n_days", "volume","is_monday", "is_friday"
+- Modelos utilizados para buscar mejor predictor (clasificación binaria): Regresión Logística, Decision Tree, Random Forest, Gradient Boosting, AdaBoosting, XGBoosting, Light Gradient Boosting con eso se pudo decidir el mejor modelo de entre esos que para el caso de mis datos fue XGBoosting
+- En el presente caso de mi proyecto se utiliza para el entrenamiento datos del año anterior a 2023, para validación datos del 2024 y para testing datos del 2025
+
+#Simulación 2025 (backtest)
+
+Regla simple:
+- Si `pred_label == 1`, comprar al open y cerrar al close del día; si `0`, estar en efectivo.
+
+Outputs:
+- Curva de equity del activo y portafolio (si varios tickers).
+- Drawdown máximo, retorno total y anualizado, número de trades.
+- Comparación con métricas ML (accuracy, precision/recall si aplica).
+
+#Troubleshooting
+
+- La API muestra `prob_up`: reconstruir la imagen y reiniciar Compose; hacer hard-refresh de `/docs` (Ctrl+F5). La respuesta final solo incluye `pred_label`.
+- Error cargando modelo: confirmar que `libros/modelos` está montado en `/models` y que el archivo existe como `best_pipeline.joblib`.
+- Puerto ocupado: cambiar `API_PORT` en `.env` y actualizar el mapeo en `docker-compose.yaml`.
+
+#Conclusiones generales:
+
+- Enfoque: predecimos si el día cerrará arriba del precio de apertura (`target_up`). Usamos solo datos disponibles antes de abrir el mercado para evitar errores por usar información futura.
+- EDA: los datos son estables en el tiempo y hay días al alza y a la baja en proporciones razonables. Las estadísticas muestran datos con señales muy fluctuantes lo cual es lógico en el sentido de que en el mercado hay continuos movimientos de alzas y bajas
+- Features: usamos retornos previos, volatilidad calculada con ventanas, volumen y datos del calendario (día de la semana, mes). Todo se calcula con información que se puede tener disponible al inicio del día esto para evitar leakage.
+- Splits: entrenamos con 2020–2023, validamos con 2024 y probamos con 2025 para medir qué tanto generaliza el modelo.
+- Modelos: probamos varios y XGBoost fue el mejor, con buenas métricas (F1 y ROC-AUC) y comportamiento más estable.
+- 2025: el modelo mantiene buen rendimiento fuera de muestra y sirve para una estrategia sencilla basada en la señal al inicio del día.
+- Valor: el pipeline es reproducible y útil para decisiones tácticas de corto plazo; no reemplaza análisis profundo del mercado ni expertise de traders.
+- Futuro: mejorar el tuning, añadir features de microestructura, sentiment analysis, probar la idea en más activos y con datos de más años.
