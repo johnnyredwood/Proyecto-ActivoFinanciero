@@ -7,10 +7,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py /app/app.py
 
-# Default envs (override via compose)
-ENV MODEL_PATH=/models/best_pipeline.joblib
-ENV API_PORT=8000
+ENV MODEL_PATH="/home/jovyan/work/modelos/best_pipeline.joblib"
+ENV API_PORT=${API_PORT}
 
-EXPOSE 8000
+EXPOSE ${API_PORT}
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${API_PORT}"]
