@@ -250,3 +250,7 @@ Outputs:
 - 2025: el modelo mantiene buen rendimiento fuera de muestra y sirve para una estrategia sencilla basada en la señal al inicio del día.
 - Valor: el pipeline es reproducible y útil para decisiones tácticas de corto plazo; no reemplaza análisis profundo del mercado ni expertise de traders.
 - Futuro: mejorar el tuning, añadir features de microestructura, sentiment analysis, probar la idea en más activos y con datos de más años.
+
+#Evidencias
+
+Ver carpeta de evidencias del proyecto para observar capturas de notebooks en funcionamiento, datos en PGAdmin y uso de API desde navegador
