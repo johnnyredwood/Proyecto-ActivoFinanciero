@@ -7,7 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py /app/app.py
 
-ENV MODEL_PATH="/home/jovyan/work/modelos/best_pipeline.joblib"
 ENV API_PORT=${API_PORT}
 
 EXPOSE ${API_PORT}
